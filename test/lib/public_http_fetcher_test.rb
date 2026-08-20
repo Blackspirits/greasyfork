@@ -24,6 +24,7 @@ class PublicHttpFetcherTest < ActiveSupport::TestCase
       url == 'https://source.example/source.user.js' &&
         options[:scheme_whitelist] == ['https'] &&
         options[:http_options] == { read_timeout: 10 } &&
+        options[:request_proc].respond_to?(:call) &&
         !options.key?(:max_redirects) &&
         !options.key?(:allow_unfollowed_redirects)
     end.returns(response)
@@ -39,6 +40,19 @@ class PublicHttpFetcherTest < ActiveSupport::TestCase
     end.returns(response)
 
     assert_equal 'script contents', PublicHttpFetcher.get('http://source.example/source.user.js')
+  end
+
+  test 'returns the final URL requested by SsrfFilter' do
+    response = stub(code: '200', body: 'script contents')
+    SsrfFilter.expects(:get).with do |_url, options|
+      options[:request_proc].call(Net::HTTP::Get.new(URI('https://final.example/source.user.js')))
+      true
+    end.returns(response)
+
+    result = PublicHttpFetcher.get_response('https://source.example/source.user.js')
+
+    assert_same response, result.response
+    assert_equal 'https://final.example/source.user.js', result.url
   end
 
   test 'preserves OpenURI HTTP errors' do

@@ -3,31 +3,36 @@ require 'ssrf_filter'
 require 'timeout'
 
 class PublicHttpFetcher
+  FetchResult = Struct.new(:response, :url, keyword_init: true)
+
   class Error < StandardError; end
   class InvalidUrl < Error; end
   class FetchError < Error; end
 
   def self.get(url, read_timeout: 10, timeout: 11)
-    response = response(url, read_timeout:, timeout:)
+    result = get_response(url, read_timeout:, timeout:)
+    response = result.response
 
     return response.body.to_s if response.code.to_i.between?(200, 299)
 
     raise OpenURI::HTTPError.new("#{response.code} #{response.message}", response)
   end
 
-  def self.response(url, read_timeout: 10, timeout: 11, max_redirects: nil, allow_unfollowed_redirects: false)
+  def self.get_response(url, read_timeout: 10, timeout: 11)
     uri = validate_url!(url)
     scheme_whitelist = uri.scheme == 'https' ? ['https'] : %w[http https]
-    options = {
-      scheme_whitelist:,
-      http_options: { read_timeout: },
-    }
-    options[:max_redirects] = max_redirects unless max_redirects.nil?
-    options[:allow_unfollowed_redirects] = true if allow_unfollowed_redirects
+    final_url = uri.to_s
 
-    Timeout.timeout(timeout) do
-      SsrfFilter.get(uri.to_s, **options)
+    response = Timeout.timeout(timeout) do
+      SsrfFilter.get(
+        uri.to_s,
+        scheme_whitelist:,
+        http_options: { read_timeout: },
+        request_proc: ->(request) { final_url = request.uri.to_s },
+      )
     end
+
+    FetchResult.new(response:, url: final_url)
   rescue SsrfFilter::Error => e
     raise FetchError, e.message
   end

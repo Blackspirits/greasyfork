@@ -1,36 +1,33 @@
 require 'test_helper'
+require 'public_http_fetcher'
 
 module ScriptChecking
   class LinkCheckerSsrfTest < ::ActiveSupport::TestCase
-    test 'resolves relative redirects through the safe fetcher' do
-      redirect = stub
-      redirect.stubs(:[]).with('location').returns('/final')
-      final = stub
-      final.stubs(:[]).with('location').returns(nil)
-      final.stubs(:[]).with('content-type').returns(nil)
+    test 'resolve returns the final URL from the protected fetcher' do
+      url = 'https://bit.ly/example'
+      response = stub
+      response.stubs(:[]).with('content-type').returns('text/plain')
+      result = PublicHttpFetcher::FetchResult.new(response:, url: 'https://final.example/path')
+      PublicHttpFetcher.expects(:get_response).with(url).returns(result)
 
-      PublicHttpFetcher.expects(:response)
-                       .with('https://short.example/start', max_redirects: 0, allow_unfollowed_redirects: true)
-                       .returns(redirect)
-      PublicHttpFetcher.expects(:response)
-                       .with('https://short.example/final', max_redirects: 0, allow_unfollowed_redirects: true)
-                       .returns(final)
-
-      assert_equal 'https://short.example/final', ScriptChecking::LinkChecker.resolve('https://short.example/start')
+      assert_equal 'https://final.example/path', LinkChecker.resolve(url)
     end
 
-    test 'revalidates a private redirect target before fetching it' do
-      redirect = stub
-      redirect.stubs(:[]).with('location').returns('http://127.0.0.1/private')
+    test 'resolve preserves meta refresh handling' do
+      url = 'https://www.baidu.com/link?url=example'
+      response = stub(body: '<meta http-equiv="refresh" content="0;URL=https://final.example/meta">')
+      response.stubs(:[]).with('content-type').returns('text/html')
+      result = PublicHttpFetcher::FetchResult.new(response:, url: 'https://intermediate.example/path')
+      PublicHttpFetcher.expects(:get_response).with(url).returns(result)
 
-      PublicHttpFetcher.expects(:response)
-                       .with('https://short.example/start', max_redirects: 0, allow_unfollowed_redirects: true)
-                       .returns(redirect)
-      PublicHttpFetcher.expects(:response)
-                       .with('http://127.0.0.1/private', max_redirects: 0, allow_unfollowed_redirects: true)
-                       .raises(PublicHttpFetcher::FetchError, 'private address')
+      assert_equal 'https://final.example/meta', LinkChecker.resolve(url)
+    end
 
-      assert_equal 'https://short.example/start', ScriptChecking::LinkChecker.resolve('https://short.example/start')
+    test 'resolve returns the original URL when the protected fetcher rejects a destination' do
+      url = 'https://bit.ly/example'
+      PublicHttpFetcher.expects(:get_response).with(url).raises(PublicHttpFetcher::FetchError, 'private address')
+
+      assert_equal url, LinkChecker.resolve(url)
     end
   end
 end

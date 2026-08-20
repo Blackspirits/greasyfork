@@ -64,27 +64,13 @@ module ScriptChecking
                      ])
       end
 
-      def resolve(url, remaining_tries: 5, fallback_url: url)
-        return url if remaining_tries == 0
+      def resolve(url)
+        result = PublicHttpFetcher.get_response(url)
+        meta_refresh_url = find_meta_refresh(result.response) if result.response['content-type'] == 'text/html'
 
-        begin
-          res = PublicHttpFetcher.response(url, max_redirects: 0, allow_unfollowed_redirects: true)
-        rescue PublicHttpFetcher::Error, Timeout::Error, Errno::ECONNREFUSED, Errno::ECONNRESET, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError
-          return fallback_url
-        end
-
-        if res['location'].present?
-          begin
-            redirected_url = URI.join(url, res['location']).to_s
-          rescue URI::Error, TypeError
-            return url
-          end
-          return resolve(redirected_url, remaining_tries: remaining_tries - 1, fallback_url: url)
-        end
-
-        meta_refresh_url = find_meta_refresh(res) if res['content-type'] == 'text/html'
-
-        meta_refresh_url || url
+        meta_refresh_url || result.url
+      rescue PublicHttpFetcher::Error, Timeout::Error, Errno::ECONNREFUSED, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout
+        url
       end
 
       def check_with_google_safe_browsing(urls)
