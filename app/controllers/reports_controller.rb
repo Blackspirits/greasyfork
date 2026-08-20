@@ -3,6 +3,7 @@ class ReportsController < ApplicationController
   before_action :authenticate_user!, except: :show
   before_action :moderators_only, only: [:index, :dismiss]
   before_action :load_report, only: :show
+  before_action :authorize_message_report, only: :show
   before_action :mark_notifications_read, only: :show
 
   before_action do
@@ -274,6 +275,13 @@ class ReportsController < ApplicationController
 
   def load_report
     @report = Report.find(params.expect(:id))
+  end
+
+  def authorize_message_report
+    return unless @report.item.is_a?(Message)
+    return if current_user && (@report.item.conversation.users.include?(current_user) || current_user.moderator? || current_user.administrator?)
+
+    render_404
   end
 
   def mark_notifications_read
