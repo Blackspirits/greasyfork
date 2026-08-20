@@ -37,4 +37,13 @@ class ReportMessagePrivacyTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, @message.content
   end
+
+  test 'moderator can view message report' do
+    sign_in users(:mod)
+
+    get report_path(@report)
+
+    assert_response :success
+    assert_includes response.body, @message.content
+  end
 end
