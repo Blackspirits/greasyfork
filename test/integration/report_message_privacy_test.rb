@@ -20,6 +20,15 @@ class ReportMessagePrivacyTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, @message.content
   end
 
+  test 'unrelated signed-in user cannot view message report' do
+    sign_in users(:one)
+
+    get report_path(@report)
+
+    assert_response :not_found
+    assert_not_includes response.body, @message.content
+  end
+
   test 'conversation participant can view message report' do
     sign_in users(:geoff)
 
