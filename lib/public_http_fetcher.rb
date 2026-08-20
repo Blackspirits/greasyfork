@@ -8,20 +8,26 @@ class PublicHttpFetcher
   class FetchError < Error; end
 
   def self.get(url, read_timeout: 10, timeout: 11)
-    uri = validate_url!(url)
-    scheme_whitelist = uri.scheme == 'https' ? ['https'] : %w[http https]
-
-    response = Timeout.timeout(timeout) do
-      SsrfFilter.get(
-        uri.to_s,
-        scheme_whitelist:,
-        http_options: { read_timeout: },
-      )
-    end
+    response = response(url, read_timeout:, timeout:)
 
     return response.body.to_s if response.code.to_i.between?(200, 299)
 
     raise OpenURI::HTTPError.new("#{response.code} #{response.message}", response)
+  end
+
+  def self.response(url, read_timeout: 10, timeout: 11, max_redirects: nil, allow_unfollowed_redirects: false)
+    uri = validate_url!(url)
+    scheme_whitelist = uri.scheme == 'https' ? ['https'] : %w[http https]
+    options = {
+      scheme_whitelist:,
+      http_options: { read_timeout: },
+    }
+    options[:max_redirects] = max_redirects unless max_redirects.nil?
+    options[:allow_unfollowed_redirects] = true if allow_unfollowed_redirects
+
+    Timeout.timeout(timeout) do
+      SsrfFilter.get(uri.to_s, **options)
+    end
   rescue SsrfFilter::Error => e
     raise FetchError, e.message
   end

@@ -2,6 +2,7 @@ require 'net/http'
 require 'uri'
 require 'google_safe_browsing'
 require 'js_executor'
+require 'public_http_fetcher'
 
 module ScriptChecking
   class LinkChecker
@@ -67,16 +68,18 @@ module ScriptChecking
         return url if remaining_tries == 0
 
         begin
-          res = Net::HTTP.get_response(URI(url))
-        rescue Errno::ECONNREFUSED, URI::InvalidURIError, Socket::ResolutionError, Net::OpenTimeout
+          res = PublicHttpFetcher.response(url, max_redirects: 0, allow_unfollowed_redirects: true)
+        rescue PublicHttpFetcher::Error, Timeout::Error, Errno::ECONNREFUSED, Errno::ECONNRESET, Socket::ResolutionError, Net::OpenTimeout, Net::ReadTimeout, OpenSSL::SSL::SSLError
           return url
         end
 
-        begin
-          return resolve(res['location'], remaining_tries: remaining_tries - 1) if res['location'].present?
-        rescue ArgumentError
-          # An invalid URI?
-          return url
+        if res['location'].present?
+          begin
+            redirected_url = URI.join(url, res['location']).to_s
+          rescue URI::Error, TypeError
+            return url
+          end
+          return resolve(redirected_url, remaining_tries: remaining_tries - 1)
         end
 
         meta_refresh_url = find_meta_refresh(res) if res['content-type'] == 'text/html'
