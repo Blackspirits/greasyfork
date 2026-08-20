@@ -30,7 +30,7 @@ module ScriptChecking
                        .with('http://127.0.0.1/private', max_redirects: 0, allow_unfollowed_redirects: true)
                        .raises(PublicHttpFetcher::FetchError, 'private address')
 
-      assert_equal 'http://127.0.0.1/private', ScriptChecking::LinkChecker.resolve('https://short.example/start')
+      assert_equal 'https://short.example/start', ScriptChecking::LinkChecker.resolve('https://short.example/start')
     end
   end
 end
