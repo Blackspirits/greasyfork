@@ -3,6 +3,7 @@ class ConversationMailer < ApplicationMailer
 
   helper UsersHelper
   helper UserTextHelper
+  helper ConversationMessageHelper
 
   def new_conversation(conversation, receiving_user, initiator_user)
     # If the either user is deleted/banned, then who cares.

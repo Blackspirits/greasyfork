@@ -43,7 +43,7 @@
       <% end %>
     </div>
     <div class="user-content">
-      <%= format_user_text(message.content, message.content_markup, mentions: message.mentions) %>
+      <%= format_conversation_message(message, mentions: message.mentions) %>
       <%= render partial: 'screenshots/show', locals: { attachable: message } %>
     </div>
     <% if message.editable_by?(current_user) %>
